@@ -1,0 +1,532 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.inspection import PartialDependenceDisplay
+from xgboost import XGBClassifier
+from google.colab import drive
+import matplotlib
+
+# 한글 깨짐 방지
+!apt-get update -qq
+!apt-get install fonts-nanum* -qq
+matplotlib.rcParams['font.family'] = 'NanumGothic'
+matplotlib.rcParams['axes.unicode_minus'] = False
+
+drive.mount('/content/drive')
+
+# 데이터 불러오기
+file_path_2023 = '/content/drive/MyDrive/축제파일/2023_문체부+빅카인즈+네이버api.csv'
+file_path_2024 = '/content/drive/MyDrive/축제파일/2024_문체부+빅카인즈+네이버api.csv'
+
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 결측치 처리
+def handle_missing_values(df):
+    df_cleaned = df[df.isnull().sum(axis=1) <= 1]
+    return df_cleaned.fillna(0)
+
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+features = [
+    '국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)',
+    '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    '포스팅_빈도', '긍정_키워드수', '부정_키워드수',
+    '긍정문장비율', '중립문장비율', '부정문장비율'
+]
+target = 'target'
+
+X_train = df_2023[features]
+y_train = df_2023[target]
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 스케일링 (DataFrame 형태 유지)
+scaler = StandardScaler()
+X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=features)
+X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=features)
+
+# XGBoost 학습
+xgb_model = XGBClassifier(
+    n_estimators=200,
+    learning_rate=0.05,
+    max_depth=5,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    eval_metric='logloss'
+)
+xgb_model.fit(X_train_scaled, y_train)
+
+# 상위 중요 피처 자동 선택
+importances = pd.Series(xgb_model.feature_importances_, index=features)
+top_features = importances.sort_values(ascending=False).head(4).index.tolist()
+print("상위 중요 피처:", top_features)
+
+# subplot 설정
+n_features = len(top_features)
+fig, axes = plt.subplots(n_features, 2, figsize=(14, 4 * n_features))
+fig.tight_layout(pad=5)
+
+# 학습 데이터 기준 PDP + ICE
+for i, feature in enumerate(top_features):
+    PartialDependenceDisplay.from_estimator(
+        xgb_model,
+        X_train_scaled,
+        features=[feature],
+        kind='both',          # PDP + ICE
+        subsample=50,         # ICE 일부 샘플만 표시
+        ax=axes[i, 0]
+    )
+    axes[i, 0].set_title(f"학습 데이터 - {feature}", fontsize=14)
+
+# 테스트 데이터 기준 PDP + ICE
+for i, feature in enumerate(top_features):
+    PartialDependenceDisplay.from_estimator(
+        xgb_model,
+        X_test_scaled,
+        features=[feature],
+        kind='both',
+        subsample=50,
+        ax=axes[i, 1]
+    )
+    axes[i, 1].set_title(f"테스트 데이터 - {feature}", fontsize=14)
+
+plt.show()
+
+#--------------------------------
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.inspection import PartialDependenceDisplay
+from xgboost import XGBClassifier
+from google.colab import drive
+import matplotlib
+import matplotlib.font_manager as fm
+
+# 1️⃣ 한글 깨짐 방지 (Colab용)
+!apt-get update -qq
+!apt-get install fonts-nanum* -qq
+
+# 나눔고딕 폰트 경로 지정
+nanum_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
+fontprop = fm.FontProperties(fname=nanum_path)
+
+plt.rcParams['font.family'] = fontprop.get_name()
+plt.rcParams['axes.unicode_minus'] = False
+
+# 2️⃣ Google Drive 마운트
+drive.mount('/content/drive')
+
+# 3️⃣ 데이터 불러오기
+file_path_2023 = '/content/drive/MyDrive/축제파일/2023_문체부+빅카인즈+네이버api.csv'
+file_path_2024 = '/content/drive/MyDrive/축제파일/2024_문체부+빅카인즈+네이버api.csv'
+
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 4️⃣ 결측치 처리
+def handle_missing_values(df):
+    df_cleaned = df[df.isnull().sum(axis=1) <= 1]
+    return df_cleaned.fillna(0)
+
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+features = [
+    '국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)',
+    '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    '포스팅_빈도', '긍정_키워드수', '부정_키워드수',
+    '긍정문장비율', '중립문장비율', '부정문장비율'
+]
+target = 'target'
+
+X_train = df_2023[features]
+y_train = df_2023[target]
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 5️⃣ 스케일링
+scaler = StandardScaler()
+X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=features)
+X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=features)
+
+# 6️⃣ XGBoost 학습
+xgb_model = XGBClassifier(
+    n_estimators=200,
+    learning_rate=0.05,
+    max_depth=5,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    eval_metric='logloss'
+)
+xgb_model.fit(X_train_scaled, y_train)
+
+# 7️⃣ 상위 중요 피처 선택
+importances = pd.Series(xgb_model.feature_importances_, index=features)
+top_features = importances.sort_values(ascending=False).head(8).index.tolist()
+print("상위 중요 피처:", top_features)
+
+# 8️⃣ subplot 설정
+n_features = len(top_features)
+fig, axes = plt.subplots(n_features, 2, figsize=(16, 4 * n_features))
+fig.tight_layout(pad=5)
+
+# 색상 설정
+pdp_color = 'red'       # PDP 강조 색
+ice_color = 'gray'      # ICE 얇은 선 색
+
+# 9️⃣ PDP + ICE 학습/테스트 데이터 시각화 함수
+def plot_pdp_ice(ax, X, feature, dataset_name):
+    disp = PartialDependenceDisplay.from_estimator(
+        xgb_model,
+        X,
+        features=[feature],
+        kind='both',
+        subsample=50,
+        ax=ax
+    )
+    ax.set_title(f"{dataset_name} - {feature}", fontsize=14, fontproperties=fontprop)
+    ax.set_xlabel("특성 값", fontsize=12, fontproperties=fontprop)
+    ax.set_ylabel("예측 확률", fontsize=12, fontproperties=fontprop)
+
+    # legend 제거
+    ax.legend().remove()
+
+    # 선 굵기/색상 조정
+    lines = ax.get_lines()
+    for j, line in enumerate(lines):
+        if j == 0:  # PDP
+            line.set_linewidth(3)
+            line.set_color(pdp_color)
+        else:       # ICE
+            line.set_linewidth(0.8)
+            line.set_color(ice_color)
+
+    # legend 새로 생성
+    labels = [f'PDP: {feature}'] + [f'ICE {j+1}' for j in range(len(lines)-1)]
+    for line, label in zip(lines, labels):
+        line.set_label(label)
+    ax.legend(frameon=False, fontsize=10)
+
+# 10️⃣ 학습/테스트 데이터 그리기
+for i, feature in enumerate(top_features):
+    plot_pdp_ice(axes[i, 0], X_train_scaled, feature, "학습 데이터")
+    plot_pdp_ice(axes[i, 1], X_test_scaled, feature, "테스트 데이터")
+
+plt.show()
+
+
+#---------------------------
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.inspection import PartialDependenceDisplay
+from xgboost import XGBClassifier
+from google.colab import drive
+import matplotlib
+import matplotlib.font_manager as fm
+
+# 1️⃣ 한글 깨짐 방지 (Colab용)
+!apt-get update -qq
+!apt-get install fonts-nanum* -qq
+
+# 나눔고딕 폰트 경로 지정
+nanum_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
+fontprop = fm.FontProperties(fname=nanum_path)
+
+plt.rcParams['font.family'] = fontprop.get_name()
+plt.rcParams['axes.unicode_minus'] = False
+
+# 2️⃣ Google Drive 마운트
+drive.mount('/content/drive')
+
+# 3️⃣ 데이터 불러오기
+file_path_2023 = '/content/drive/MyDrive/축제파일/2023_문체부+빅카인즈+네이버api.csv'
+file_path_2024 = '/content/drive/MyDrive/축제파일/2024_문체부+빅카인즈+네이버api.csv'
+
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 4️⃣ 결측치 처리
+def handle_missing_values(df):
+    df_cleaned = df[df.isnull().sum(axis=1) <= 1]
+    return df_cleaned.fillna(0)
+
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 5️⃣ 한글 → 영어 컬럼 매핑
+col_mapping = {
+    '국비': 'national_budget',
+    '지방비': 'local_budget',
+    '기타': 'other_budget',
+    '합계': 'total_budget',
+    '내국인(명)': 'domestic_visitors',
+    '외국인(명)': 'foreign_visitors',
+    '감성_점수평균': 'sentiment_avg',
+    'G101': 'G101',
+    'G201': 'G201',
+    'G202': 'G202',
+    'G301': 'G301',
+    'G401': 'G401',
+    'G501': 'G501',
+    '포스팅_빈도': 'posting_freq',
+    '긍정_키워드수': 'positive_keywords',
+    '부정_키워드수': 'negative_keywords',
+    '긍정문장비율': 'positive_ratio',
+    '중립문장비율': 'neutral_ratio',
+    '부정문장비율': 'negative_ratio',
+    'target': 'target'
+}
+
+df_2023.rename(columns=col_mapping, inplace=True)
+df_2024.rename(columns=col_mapping, inplace=True)
+
+# 6️⃣ features, target 정의
+features = [
+    'national_budget', 'local_budget', 'other_budget', 'total_budget',
+    'domestic_visitors', 'foreign_visitors', 'sentiment_avg',
+    'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    'posting_freq', 'positive_keywords', 'negative_keywords',
+    'positive_ratio', 'neutral_ratio', 'negative_ratio'
+]
+target = 'target'
+
+X_train = df_2023[features]
+y_train = df_2023[target]
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 7️⃣ 스케일링
+scaler = StandardScaler()
+X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=features)
+X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=features)
+
+# 8️⃣ XGBoost 학습
+xgb_model = XGBClassifier(
+    n_estimators=200,
+    learning_rate=0.05,
+    max_depth=5,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    eval_metric='logloss'
+)
+xgb_model.fit(X_train_scaled, y_train)
+
+# 9️⃣ 상위 중요 피처 선택
+importances = pd.Series(xgb_model.feature_importances_, index=features)
+top_features = importances.sort_values(ascending=False).head(8).index.tolist()
+print("상위 중요 피처:", top_features)
+
+# 🔟 subplot 설정
+n_features = len(top_features)
+fig, axes = plt.subplots(n_features, 2, figsize=(16, 4 * n_features))
+fig.tight_layout(pad=5)
+
+# 색상 설정
+pdp_color = 'red'       # PDP 강조 색
+ice_color = 'gray'      # ICE 얇은 선 색
+
+# 11️⃣ PDP + ICE 학습/테스트 데이터 시각화 함수
+def plot_pdp_ice(ax, X, feature, dataset_name):
+    disp = PartialDependenceDisplay.from_estimator(
+        xgb_model,
+        X,
+        features=[feature],
+        kind='both',
+        subsample=50,
+        ax=ax
+    )
+    ax.set_title(f"{dataset_name} - {feature}", fontsize=14, fontproperties=fontprop)
+    ax.set_xlabel("특성 값", fontsize=12, fontproperties=fontprop)
+    ax.set_ylabel("예측 확률", fontsize=12, fontproperties=fontprop)
+
+    # legend 제거
+    ax.legend().remove()
+
+    # 선 굵기/색상 조정
+    lines = ax.get_lines()
+    for j, line in enumerate(lines):
+        if j == 0:  # PDP
+            line.set_linewidth(3)
+            line.set_color(pdp_color)
+        else:       # ICE
+            line.set_linewidth(0.8)
+            line.set_color(ice_color)
+
+    # legend 새로 생성
+    labels = [f'PDP: {feature}'] + [f'ICE {j+1}' for j in range(len(lines)-1)]
+    for line, label in zip(lines, labels):
+        line.set_label(label)
+    ax.legend(frameon=False, fontsize=10)
+
+# 12️⃣ 학습/테스트 데이터 그리기
+for i, feature in enumerate(top_features):
+    plot_pdp_ice(axes[i, 0], X_train_scaled, feature, "학습 데이터")
+    plot_pdp_ice(axes[i, 1], X_test_scaled, feature, "테스트 데이터")
+
+plt.show()
+
+#--------------------------------------------------
+
+#랜덤 포레스트
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    classification_report
+)
+from sklearn.inspection import PartialDependenceDisplay
+from google.colab import drive
+import matplotlib.font_manager as fm
+
+# 한글 폰트 설정
+!apt-get update -qq
+!apt-get install fonts-nanum* -qq
+nanum_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
+fontprop = fm.FontProperties(fname=nanum_path)
+plt.rcParams['font.family'] = fontprop.get_name()
+plt.rcParams['axes.unicode_minus'] = False
+
+# Google Drive 마운트
+drive.mount('/content/drive')
+
+# 데이터 불러오기
+file_path_2023 = '/content/drive/MyDrive/축제파일/2023_문체부+빅카인즈+네이버api.csv'
+file_path_2024 = '/content/drive/MyDrive/축제파일/2024_문체부+빅카인즈+네이버api.csv'
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 결측치 처리
+def handle_missing_values(df):
+    df_cleaned = df[df.isnull().sum(axis=1) <= 1]
+    return df_cleaned.fillna(0)
+
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 한글 → 영어 컬럼 매핑
+col_mapping = {
+    '국비': 'national_budget',
+    '지방비': 'local_budget',
+    '기타': 'other_budget',
+    '합계': 'total_budget',
+    '내국인(명)': 'domestic_visitors',
+    '외국인(명)': 'foreign_visitors',
+    '감성_점수평균': 'sentiment_avg',
+    'G101': 'G101',
+    'G201': 'G201',
+    'G202': 'G202',
+    'G301': 'G301',
+    'G401': 'G401',
+    'G501': 'G501',
+    '포스팅_빈도': 'posting_freq',
+    '긍정_키워드수': 'positive_keywords',
+    '부정_키워드수': 'negative_keywords',
+    '긍정문장비율': 'positive_ratio',
+    '중립문장비율': 'neutral_ratio',
+    '부정문장비율': 'negative_ratio',
+    'target': 'target'
+}
+
+# 컬럼명 변환
+df_2023.rename(columns=col_mapping, inplace=True)
+df_2024.rename(columns=col_mapping, inplace=True)
+
+# features, target 업데이트
+features = [
+    'national_budget', 'local_budget', 'other_budget', 'total_budget',
+    'domestic_visitors', 'foreign_visitors', 'sentiment_avg',
+    'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    'posting_freq', 'positive_keywords', 'negative_keywords',
+    'positive_ratio', 'neutral_ratio', 'negative_ratio'
+]
+target = 'target'
+
+X_train, y_train = df_2023[features], df_2023[target]
+X_test, y_test = df_2024[features], df_2024[target]
+
+# 스케일링
+scaler = StandardScaler()
+X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=features)
+X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=features)
+
+# 랜덤포레스트 + RandomizedSearchCV
+param_grid = {
+    'n_estimators': [100, 300],
+    'max_depth': [10, 20],
+    'min_samples_split': [2, 5],
+    'min_samples_leaf': [1, 2],
+    'max_features': ['sqrt'],
+    'class_weight': [None]
+}
+
+rand_rf = RandomizedSearchCV(
+    RandomForestClassifier(random_state=42, n_jobs=-1),
+    param_distributions=param_grid,
+    n_iter=6,
+    cv=3,
+    scoring='f1_weighted',
+    n_jobs=-1,
+    random_state=42
+)
+rand_rf.fit(X_train_scaled, y_train)
+best_rf_model = rand_rf.best_estimator_
+
+y_pred = best_rf_model.predict(X_test_scaled)
+
+print("최적 랜덤 포레스트 성능 (테스트셋)")
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("Precision:", precision_score(y_test, y_pred, average='weighted'))
+print("Recall:", recall_score(y_test, y_pred, average='weighted'))
+print("F1 Score:", f1_score(y_test, y_pred, average='weighted'))
+print(classification_report(y_test, y_pred))
+
+# 상위 중요 피처 선정
+importances_rf = pd.Series(best_rf_model.feature_importances_, index=features)
+top_features_rf = importances_rf.sort_values(ascending=False).head(4).index.tolist()
+
+# PDP + ICE 시각화
+n_features = len(top_features_rf)
+fig, axes = plt.subplots(n_features, 2, figsize=(16, 4 * n_features))
+fig.tight_layout(pad=5)
+
+for i, feature in enumerate(top_features_rf):
+    # 학습 데이터 샘플링
+    X_train_sample = X_train_scaled.sample(min(100, len(X_train_scaled)), random_state=42)
+    disp = PartialDependenceDisplay.from_estimator(
+        best_rf_model, X_train_sample, features=[feature], kind='both', ax=axes[i, 0]
+    )
+    lines = axes[i, 0].get_lines()
+    if len(lines) > 0:
+        for line in lines[1:]:
+            line.set_color('lightgray')
+            line.set_linewidth(0.8)
+        lines[0].set_color('red')
+        lines[0].set_linewidth(2.5)
+    axes[i, 0].set_title(f"학습 데이터 - {feature}", fontproperties=fontprop)
+
+    X_test_sample = X_test_scaled.sample(min(100, len(X_test_scaled)), random_state=42)
+    disp_test = PartialDependenceDisplay.from_estimator(
+        best_rf_model, X_test_sample, features=[feature], kind='both', ax=axes[i, 1]
+    )
+    lines_test = axes[i, 1].get_lines()
+    if len(lines_test) > 0:
+        for line in lines_test[1:]:
+            line.set_color('lightgray')
+            line.set_linewidth(0.8)
+        lines_test[0].set_color('red')
+        lines_test[0].set_linewidth(2.5)
+    axes[i, 1].set_title(f"테스트 데이터 - {feature}", fontproperties=fontprop)
+
+plt.show()
+

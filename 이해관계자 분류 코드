@@ -1,0 +1,49 @@
+pip install pandas openpyxl
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+import pandas as pd
+
+# 1. 데이터 불러오기
+# 파일 경로 설정
+file_path = '/content/drive/MyDrive/캡스톤/이해관계자_필터링_결과.xlsx'
+
+# 컬럼명 수동 지정
+df = pd.read_excel(file_path, sheet_name='Sheet1', header=None)
+df = df.iloc[:, [0]]
+df.columns = ['이해관계자']
+
+# 2. 분류 함수 정의
+def categorize(name):
+    name = str(name)  # 문자열로 변환
+    if any(x in name for x in ['시청', '군청', '구청']):
+        return pd.Series(['정부 및 지방자치단체', '시청/군청/구청'])
+    elif any(x in name for x in ['도청', '정부청사', '부처']):
+        return pd.Series(['정부 및 지방자치단체', '도청/정부부처'])
+    elif any(x in name for x in ['위원회', '추진단', '협의회']):
+        return pd.Series(['시민사회 및 단체', '위원회/추진단/협의회'])
+    elif any(x in name for x in ['협회', '연맹', '조합']):
+        return pd.Series(['시민사회 및 단체', '협회/연맹/조합'])
+    elif '재단' in name:
+        return pd.Series(['문화 및 예술', '재단'])
+    elif any(x in name for x in ['방송', '신문', '일보', '뉴스']):
+        return pd.Series(['문화 및 언론', '방송/신문/언론사'])
+    elif any(x in name for x in ['대학교', '대학']):
+        return pd.Series(['교육 및 연구기관', '대학'])
+    else:
+        return pd.Series(['기타', '기타'])
+
+# 3. 분류 함수 적용
+df[['대분류', '중분류']] = df['이해관계자'].apply(categorize)
+result_df = df[['대분류', '중분류', '이해관계자']].rename(columns={'이해관계자': '키워드'})
+
+# 4. 결과 저장
+output_path = '이해관계자_분류결과아아아아아.xlsx'
+result_df.to_excel(output_path, index=False)
+
+print(result_df.head())
+print("")
+print(f">> 분류된 파일이 '{output_path}' 으로 저장되었습니다.")
+
+file_path.download(output_path)  # 바로 내 PC로 다운로드

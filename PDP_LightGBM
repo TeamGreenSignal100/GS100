@@ -1,0 +1,130 @@
+# 필요한 라이브러리 설치
+!pip install lightgbm scikit-learn pdpbox --quiet
+
+import pandas as pd
+import lightgbm as lgb
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import accuracy_score, classification_report
+from pdpbox import pdp\
+import matplotlib.pyplot as plt
+
+# 1. 데이터 불러오기 (경로는 본인에 맞게 변경하세요)
+# 예) A = 2023 축제 데이터, B = 2024 축제 데이터
+A = pd.read_csv('/content/drive/MyDrive/캡스톤/2023_통합본(문체부+빅카인즈_네이버api).csv')
+B = pd.read_csv('/content/drive/MyDrive/캡스톤/2024_통합본(문체부+빅카인즈+네이버api).csv')
+
+print("A 컬럼명:")
+print(A.columns.tolist())
+
+print("\nB 컬럼명:")
+print(B.columns.tolist())
+
+# 2. 한글 변수명을 영어로 변환
+rename_dict = {
+    '국비': 'national_budget',
+    '지방비': 'local_budget',
+    '기타': 'other_budget',
+    '합계': 'total_budget',
+    '내국인(명)': 'domestic_visitors',
+    '외국인(명)': 'foreign_visitors',
+    '감성_점수평균': 'avg_sentiment_score',
+    '포스팅_빈도': 'posting_frequency',
+    '긍정_키워드수': 'positive_keyword_count',
+    '부정_키워드수': 'negative_keyword_count',
+    '긍정문장비율': 'positive_sentence_ratio',
+    '중립문장비율': 'neutral_sentence_ratio',
+    '부정문장비율': 'negative_sentence_ratio',
+    'target': 'target'
+}
+# G101, G201 등은 변수명이 이미 알파벳+숫자라면 그대로 둬도 됨
+
+A.rename(columns=rename_dict, inplace=True)
+B.rename(columns=rename_dict, inplace=True)
+
+# 3. 문자열 컬럼 제거 (만약 식별자 같은게 있으면 여기서 제거)
+# 예) 'festival_id', 'festival_name' 컬럼이 있을 경우
+drop_cols = ['축제ID', '축제명 ID', '축제명']
+A = A.drop(columns=[col for col in drop_cols if col in A.columns], errors='ignore')
+B = B.drop(columns=[col for col in drop_cols if col in B.columns], errors='ignore')
+
+print("A 컬럼명:")
+print(A.columns.tolist())
+
+print("\nB 컬럼명:")
+print(B.columns.tolist())
+
+# 4. 특성(X)과 타겟(y) 분리
+X_train = A.drop(columns=['target'])
+y_train = A['target']
+
+X_test = B.drop(columns=['target'])
+y_test = B['target']
+
+# 5. 결측치 처리 (숫자형만 가능, mean으로 채우기)
+imputer = SimpleImputer(strategy='mean')
+X_train = pd.DataFrame(imputer.fit_transform(X_train), columns=X_train.columns)
+X_test = pd.DataFrame(imputer.transform(X_test), columns=X_test.columns)
+
+print(X_train.dtypes)
+print(y_train.isnull().sum())
+print(y_train[y_train.isnull()])
+
+# 결측치가 있는 인덱스
+null_idx = y_train[y_train.isnull()].index
+
+# 해당 인덱스 삭제
+X_train = X_train.drop(index=null_idx)
+y_train = y_train.drop(index=null_idx)
+
+# 6. LightGBM 모델 학습
+model = lgb.LGBMClassifier(random_state=42)
+model.fit(X_train, y_train)
+
+# y_test에서 NaN 인덱스 찾기
+null_idx_test = y_test[y_test.isnull()].index
+
+# X_test와 y_test에서 해당 인덱스 제거
+X_test = X_test.drop(index=null_idx_test)
+y_test = y_test.drop(index=null_idx_test)
+
+# 예측 및 평가 다시 실행
+y_pred = model.predict(X_test)
+print("Accuracy on 2024 test data: ", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+from sklearn.inspection import PartialDependenceDisplay
+import matplotlib.pyplot as plt
+
+feature_to_plot = 'domestic_visitors'
+
+PartialDependenceDisplay.from_estimator(
+    model,
+    X_test,
+    features=[feature_to_plot]
+)
+plt.show()
+
+#-----------------------------
+
+from sklearn.inspection import PartialDependenceDisplay
+
+features_to_analyze = ['national_budget', 'local_budget']
+
+for feature in features_to_analyze:
+    PartialDependenceDisplay.from_estimator(model, X_test, [feature])
+    plt.show()
+
+#-----------------------
+
+from sklearn.inspection import PartialDependenceDisplay
+import matplotlib.pyplot as plt
+
+# 분석하고 싶은 주요 변수들 (네가 직접 지정 가능)
+features_to_analyze = ['domestic_visitors', 'foreign_visitors', 'total_budget', 'avg_sentiment_score']
+
+# 반복해서 PDP 출력
+for feature in features_to_analyze:
+    PartialDependenceDisplay.from_estimator(model, X_test, [feature])
+    plt.title(f"PDP of {feature}")
+    plt.show()
+    

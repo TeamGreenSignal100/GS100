@@ -1,0 +1,39 @@
+!pip install pandas openpyxl
+
+import pandas as pd
+from google.colab import files
+
+uploaded = files.upload()
+
+file_name = 'keyword_li_res.csv'  # 업로드한 파일명으로 수정
+df = pd.read_csv(file_name)
+
+keywords = [
+    "위원회", "조직위", "추진단", "기획", "문화재단", '센터','공사',
+    "문화원", "재단", "협회", "운영팀", "행사기획", '연맹',"공연",
+    "예술", "극단", "합창", "밴드", '행사', "작가", "예술가", "동아리",
+    "무용", "연주",'종등','고등',  "후원", "스폰서", "협찬", "지원",
+    "후원사", '대학교', "협찬사", "기업", "브랜드", "재정지원", "기부",
+    "식당", "카페", "상점", "시장", "숙박", '부스','시설', "민박",
+    "펜션", "특산물", "판매부스", "장터",'여인숙', "언론", "방송",
+    "신문", "보도", "기자", "SNS", "유튜버", "홍보팀", "인스타그램",
+    "포스터",'페이스북', "시청", "군청", "구청", "소방서", "경찰서",
+    "공무원", "주민센터", "지자체", "행정복지센터", "정부"
+]
+
+print(df.columns)
+
+column_name = '0'
+
+keyword_pattern = '|'.join(keywords)
+suffix_pattern = r'(회|청|구)$'
+
+filtered_df = df[
+  df[column_name].astype(str).str.contains(keyword_pattern, na=False) &
+  df[column_name].astype(str).str.contains(suffix_pattern, na=False)
+]
+
+# 저장
+save_path = '/content/drive/MyDrive/캡스톤/filtered_result_final.xlsx'
+filtered_df.to_excel(save_path, index=False)
+files.download(save_path)  # 바로 내 PC로 다운로드

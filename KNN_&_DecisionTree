@@ -1,0 +1,116 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+from google.colab import drive
+
+# 구글 드라이브 마운트
+drive.mount('/content/drive')
+
+# 파일 경로 설정 (경로는 사용자의 드라이브 환경에 맞게 수정 필요)
+file_path_2023 = '/content/drive/MyDrive/대학교/대학교 3학년/대학교 3-1 과목/캡스톤디자인EDA설계프로젝트_황철현P/캡스톤 일자별 산출 파일/2025 08 15_ api,빅카인즈,문체부 통합data/통합본/2023_통합본(문체부+빅카인즈_네이버api).csv'
+file_path_2024 = '/content/drive/MyDrive/대학교/대학교 3학년/대학교 3-1 과목/캡스톤디자인EDA설계프로젝트_황철현P/캡스톤 일자별 산출 파일/2025 08 15_ api,빅카인즈,문체부 통합data/통합본/2024_통합본(문체부+빅카인즈+네이버api).csv'
+
+# 데이터 불러오기
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 사용자 정의 결측치 처리 함수
+def handle_missing_values(df):
+    # 각 행의 결측치 개수 계산
+    nan_counts = df.isnull().sum(axis=1)
+
+    # 결측치 개수가 2개 이상인 행 삭제
+    df_cleaned = df[nan_counts <= 1]
+
+    # 나머지 결측치(1개 이하)는 0으로 채우기
+    df_filled = df_cleaned.fillna(0)
+
+    return df_filled
+
+# 2023년과 2024년 데이터에 함수 적용
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 필요한 열만 선택
+features = ['국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)', '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501', '포스팅_빈도', '긍정_키워드수', '부정_키워드수', '긍정문장비율', '중립문장비율', '부정문장비율']
+target = 'target'
+
+# 2023년 데이터(학습 데이터)
+X_train = df_2023[features]
+y_train = df_2023[target]
+
+# 2024년 데이터(테스트 데이터)
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 데이터 스케일링 (KNN을 위해 필수, Decision Tree는 선택 사항)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# KNN 하이퍼파라미터 탐색 범위 설정
+param_grid_knn = {'n_neighbors': range(1, 21, 2)}
+
+# GridSearchCV를 사용하여 최적의 하이퍼파라미터 찾기
+grid_search_knn = GridSearchCV(KNeighborsClassifier(), param_grid_knn, cv=5, scoring='f1')
+grid_search_knn.fit(X_train_scaled, y_train)
+
+# 최적의 모델로 예측 및 평가
+best_knn_model = grid_search_knn.best_estimator_
+y_pred_knn = best_knn_model.predict(X_test_scaled)
+
+accuracy_knn = accuracy_score(y_test, y_pred_knn)
+f1_knn = f1_score(y_test, y_pred_knn)
+precision_knn = precision_score(y_test, y_pred_knn)
+recall_knn = recall_score(y_test, y_pred_knn)
+
+print("### 최적화된 KNN 모델 성능 지표")
+print(f"최적의 n_neighbors: {grid_search_knn.best_params_['n_neighbors']}")
+print(f"정확도 (Accuracy): {accuracy_knn:.4f}")
+print(f"정밀도 (Precision): {precision_knn:.4f}")
+print(f"재현율 (Recall): {recall_knn:.4f}")
+print(f"F1-Score: {f1_knn:.4f}")
+
+# 혼동 행렬 시각화
+cm_knn = confusion_matrix(y_test, y_pred_knn)
+disp_knn = ConfusionMatrixDisplay(confusion_matrix=cm_knn, display_labels=best_knn_model.classes_)
+disp_knn.plot(cmap=plt.cm.Blues)
+plt.title('KNN Confusion Matrix')
+plt.show()
+
+#----------------------
+
+# Decision Tree 하이퍼파라미터 탐색 범위 설정
+param_grid_dt = {'max_depth': range(2, 11), 'min_samples_split': range(2, 11)}
+
+# GridSearchCV를 사용하여 최적의 하이퍼파라미터 찾기
+grid_search_dt = GridSearchCV(DecisionTreeClassifier(random_state=42), param_grid_dt, cv=5, scoring='f1')
+grid_search_dt.fit(X_train, y_train)
+
+# 최적의 모델로 예측 및 평가
+best_dt_model = grid_search_dt.best_estimator_
+y_pred_dt = best_dt_model.predict(X_test)
+
+accuracy_dt = accuracy_score(y_test, y_pred_dt)
+f1_dt = f1_score(y_test, y_pred_dt)
+precision_dt = precision_score(y_test, y_pred_dt)
+recall_dt = recall_score(y_test, y_pred_dt)
+
+print("### 최적화된 Decision Tree 모델 성능 지표")
+print(f"최적의 하이퍼파라미터: {grid_search_dt.best_params_}")
+print(f"정확도 (Accuracy): {accuracy_dt:.4f}")
+print(f"정밀도 (Precision): {precision_dt:.4f}")
+print(f"재현율 (Recall): {recall_dt:.4f}")
+print(f"F1-Score: {f1_dt:.4f}")
+
+# 혼동 행렬 시각화
+cm_dt = confusion_matrix(y_test, y_pred_dt)
+disp_dt = ConfusionMatrixDisplay(confusion_matrix=cm_dt, display_labels=best_dt_model.classes_)
+disp_dt.plot(cmap=plt.cm.Blues)
+plt.title('Decision Tree Confusion Matrix')
+plt.show()

@@ -1,0 +1,128 @@
+!pip install catboost
+
+import numpy as np
+import matplotlib.pyplot as plt
+import lightgbm as lgb
+from catboost import CatBoostClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import (
+    accuracy_score, f1_score, classification_report, confusion_matrix
+)
+
+import pandas as pd
+# 데이터 로드 (파일 경로/이름에 맞게 수정)
+A = pd.read_csv('/content/drive/MyDrive/캡스톤/2023_통합본(문체부+빅카인즈_네이버api).csv')  # 2023년도 데이터
+B = pd.read_csv('/content/drive/MyDrive/캡스톤/2024_통합본(문체부+빅카인즈+네이버api).csv')  # 2024년도 데이터
+
+# A, B의 ID 컬럼명이 다르므로 통일 (필요시)
+if '축제ID' in A.columns and '축제명 ID' in B.columns:
+    B.rename(columns={'축제명 ID': '축제ID'}, inplace=True)
+
+# === 1. 사용 Feature 및 데이터 분리 ===
+features = [
+    '국비', '지방비', '기타', '합계',
+    '내국인(명)', '외국인(명)',
+    'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    '감성_점수평균', '포스팅_빈도', '긍정_키워드수', '부정_키워드수',
+    '긍정문장비율', '중립문장비율', '부정문장비율'
+]
+
+X_train = A[features]
+y_train = A['target']  # 0: 실패, 1: 성공
+
+X_test = B[features]
+y_test = B['target']
+
+# === 2. NaN 제거 ===
+mask_test = ~y_test.isna()
+X_test_clean = X_test[mask_test]
+y_test_clean = y_test[mask_test]
+
+# 1. NaN 제거 (딱 1개 있는 NaN을 제거)
+train_mask = ~y_train.isna()
+X_train_clean = X_train[train_mask]
+y_train_clean = y_train[train_mask]
+
+# 2. LightGBM 분류 모델 학습 (여기서 clean 데이터만 사용해야 함!!)
+grid_lgb.fit(X_train_clean, y_train_clean)  # ✅ 반드시 clean 버전 사용
+
+print("NaN in y_train:", y_train.isna().sum())
+
+# === 3. LightGBM 분류 모델 튜닝 ===
+lgb_clf = lgb.LGBMClassifier(random_state=42)
+
+param_grid_lgb = {
+    'num_leaves': [31, 50],
+    'learning_rate': [0.05, 0.1],
+    'n_estimators': [100, 200]
+}
+
+grid_lgb = GridSearchCV(
+    estimator=lgb_clf,
+    param_grid=param_grid_lgb,
+    scoring='f1',  # 또는 'accuracy'
+    cv=3,
+    n_jobs=-1,
+    verbose=1
+)
+
+grid_lgb.fit(X_train_clean, y_train_clean)  # ✅ NaN 제거된 변수 사용
+print("LightGBM 최적 하이퍼파라미터:", grid_lgb.best_params_)
+
+from catboost import CatBoostClassifier
+from sklearn.model_selection import GridSearchCV
+
+# 1. CatBoost 분류기 기본 모델 생성
+cat = CatBoostClassifier(random_seed=42, verbose=0)
+
+# 2. 하이퍼파라미터 그리드 설정
+param_grid_cat = {
+    'depth': [4, 6, 8],
+    'learning_rate': [0.01, 0.05, 0.1],
+    'iterations': [100, 200]
+}
+
+# 3. GridSearchCV 설정 (f1 점수로 평가)
+grid_cat = GridSearchCV(
+    estimator=cat,
+    param_grid=param_grid_cat,
+    scoring='f1',
+    cv=3,
+    n_jobs=-1,
+    verbose=1
+)
+
+# 4. NaN 제거한 데이터로 학습
+grid_cat.fit(X_train_clean, y_train_clean)
+
+# 5. 최적 하이퍼파라미터 출력
+print("CatBoost 최적 하이퍼파라미터:", grid_cat.best_params_)
+
+# 6. 최적 모델 저장
+cat_best_model = grid_cat.best_estimator_
+
+# === 5. 최적 모델로 예측 ===
+lgb_best_model = grid_lgb.best_estimator_
+cat_best_model = grid_cat.best_estimator_
+
+lgb_pred_prob = lgb_best_model.predict_proba(X_test_clean)[:, 1]
+cat_pred_prob = cat_best_model.predict_proba(X_test_clean)[:, 1]
+
+# 확률 → 클래스(0 또는 1)
+lgb_pred = (lgb_pred_prob >= 0.5).astype(int)
+cat_pred = (cat_pred_prob >= 0.5).astype(int)
+
+# === 6. 평가 함수 ===
+def print_classification_metrics(y_true, y_pred, model_name):
+    acc = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    print(f"\n📊 {model_name} 성능:")
+    print(f"  Accuracy: {acc:.4f}")
+    print(f"  F1 Score: {f1:.4f}")
+    print("  Classification Report:")
+    print(classification_report(y_true, y_pred))
+    print("  Confusion Matrix:")
+    print(confusion_matrix(y_true, y_pred))
+
+print_classification_metrics(y_test_clean, lgb_pred, "LightGBM")
+print_classification_metrics(y_test_clean, cat_pred, "CatBoost")

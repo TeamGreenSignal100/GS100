@@ -1,0 +1,38 @@
+import pandas as pd
+from google.colab import drive
+drive.mount('/content/drive')
+
+df = pd.read_csv('/content/drive/MyDrive/캡스톤/이해관계자_분류결과.xlsx - Sheet1.csv')
+
+base_map_large = {
+    '문화 및 언론': "G1",
+    '시민사회 및 단체': "G2",
+    '정부 및 지방자치단체': "G3",
+    '문화 및 예술': "G4",
+    '기타': "G5"
+}
+
+base_map_middle = {
+    '방송/신문/언론사': "G101",
+    '위원회/추진단/협의회': "G201",
+    '협회/연맹/조합': "G202",
+    '시청/군청/구청': "G301",
+    '재단': "G401",
+    '기타': "G501"
+}
+
+# 1) 대분류 고유번호 매핑
+df['대분류 고유번호'] = df['대분류'].map(base_map_large)
+
+# 2) 중분류 고유번호 매핑
+df['중분류 고유번호'] = df['중분류'].map(base_map_middle)
+
+# 3) 이해관계자 고유번호 생성: 중분류별 번호 부여 (중분류 고유번호 + '-' + 번호)
+df['이해관계자 번호'] = df.groupby('중분류').cumcount() + 1
+df['이해관계자 고유번호'] = df['중분류 고유번호'] + '-' + df['이해관계자 번호'].astype(str)
+
+# 4) 원하는 컬럼 순서로 정리
+result = df[['대분류 고유번호', '대분류', '중분류 고유번호', '중분류', '이해관계자 고유번호', '이해관계자 키워드']]
+
+# 5) CSV 저장
+result.to_csv('/content/drive/MyDrive/캡스톤/최종_이해관계자_분류.csv', index=False)

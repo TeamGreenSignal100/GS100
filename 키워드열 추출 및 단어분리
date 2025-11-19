@@ -1,0 +1,41 @@
+import pandas as pd
+import numpy as np
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+data = pd.read_csv('/content/drive/MyDrive/캡스톤/축제_통합_최종본_100개.csv')
+
+keyword_list = []
+for i in data['키워드']:
+  keyword_list.append(i)
+
+  # 빈 리스트 생성
+keyword_li_res = []
+
+# 각 문자열을 분리하고 결과 리스트에 추가
+for keywords in keyword_list:
+    # 값이 문자열인지 확인 후 split 수행
+    if isinstance(keywords, str):
+        keyword_li_res.extend(keywords.split(','))
+    else:
+        # 선택적으로 문자열이 아닌 값 처리 (예: 경고 출력, 건너뛰기, 문자열로 변환 등)
+        # 현재는 문자열이 아닌 값을 빈 문자열로 변환한 후 split 수행
+        keyword_li_res.extend(str(keywords).split(','))
+
+keyword_li_res
+len(keyword_li_res)
+# 공백제거
+# keyword_li_res = keyword_li_res.strip()
+keyword_li_res = [keyword.strip() for keyword in keyword_li_res]
+
+keyword_li_res
+
+# 중복값 제거
+keyword_li_res = list(set(keyword_li_res))
+keyword_li_res
+
+len(keyword_li_res)  # 중복 제거
+
+keyword_li_res = pd.DataFrame(keyword_li_res)
+keyword_li_res

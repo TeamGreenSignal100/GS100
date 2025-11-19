@@ -1,0 +1,206 @@
+# 라이브러리 불러오기
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+from google.colab import drive
+from sklearn.svm import SVC
+from scipy.stats import uniform, randint
+
+# 파일 경로
+file_path_2023 = '/content/drive/MyDrive/축제파일/2023_문체부+빅카인즈+네이버api.csv'
+file_path_2024 = '/content/drive/MyDrive/축제파일/2024_문체부+빅카인즈+네이버api.csv'
+
+# 데이터 불러오기
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 결측치 처리
+def handle_missing_values(df):
+    nan_counts = df.isnull().sum(axis=1)
+    df_cleaned = df[nan_counts <= 1]
+    df_filled = df_cleaned.fillna(0)
+    return df_filled
+
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 피처/타겟 선택
+features = [
+    '국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)',
+    '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    '포스팅_빈도', '긍정_키워드수', '부정_키워드수',
+    '긍정문장비율', '중립문장비율', '부정문장비율'
+]
+target = 'target'
+
+X_train = df_2023[features]
+y_train = df_2023[target]
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 데이터 스케일링
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# RandomizedSearchCV용 파라미터 분포
+param_dist = {
+    'C': uniform(0.1, 1000),             # 0.1 ~ 1000
+    'gamma': uniform(0.0001, 0.1),       # 0.0001 ~ 0.1001
+    'kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
+    'degree': randint(2, 5),             # 2,3,4
+    'coef0': uniform(0, 1)               # 0 ~ 1
+}
+
+# RandomizedSearchCV 설정 (빠른 실행용)
+svm = SVC(random_state=42)
+
+random_search = RandomizedSearchCV(
+    estimator=svm,
+    param_distributions=param_dist,
+    n_iter=50,          # 50번 랜덤 탐색
+    scoring='f1',
+    cv=3,               # 3-fold CV
+    n_jobs=-1,
+    verbose=2,
+    random_state=42
+)
+
+# 학습
+random_search.fit(X_train_scaled, y_train)
+
+print("=== RandomizedSearchCV Results ===")
+print("Best parameters found: ", random_search.best_params_)
+print("Best cross-validated F1 Score: ", random_search.best_score_)
+
+# 최적 모델로 테스트 예측
+best_svm = random_search.best_estimator_
+y_pred_best = best_svm.predict(X_test_scaled)
+
+print("\n=== Optimized SVM Test Results ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_best))
+print("Precision:", precision_score(y_test, y_pred_best))
+print("Recall:", recall_score(y_test, y_pred_best))
+print("F1 Score:", f1_score(y_test, y_pred_best))
+
+# 혼동행렬 시각화
+cm = confusion_matrix(y_test, y_pred_best)
+ConfusionMatrixDisplay(confusion_matrix=cm).plot(cmap=plt.cm.Blues)
+plt.title("Optimized SVM Confusion Matrix")
+plt.show()
+#-------------------
+
+# 라이브러리 불러오기
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+from google.colab import drive
+from xgboost import XGBClassifier
+from scipy.stats import uniform, randint
+
+# 파일 경로
+file_path_2023 = '/content/drive/MyDrive/축제파일/2023_문체부+빅카인즈+네이버api.csv'
+file_path_2024 = '/content/drive/MyDrive/축제파일/2024_문체부+빅카인즈+네이버api.csv'
+
+# 데이터 불러오기
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 결측치 처리
+def handle_missing_values(df):
+    nan_counts = df.isnull().sum(axis=1)
+    df_cleaned = df[nan_counts <= 1]
+    df_filled = df_cleaned.fillna(0)
+    return df_filled
+
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 피처/타겟 선택
+features = [
+    '국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)',
+    '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    '포스팅_빈도', '긍정_키워드수', '부정_키워드수',
+    '긍정문장비율', '중립문장비율', '부정문장비율'
+]
+target = 'target'
+
+X_train = df_2023[features]
+y_train = df_2023[target]
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 데이터 스케일링
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# RandomizedSearchCV용 하이퍼파라미터 분포 (확장)
+param_dist = {
+    'n_estimators': randint(100, 500),        # 100~500
+    'learning_rate': uniform(0.01, 0.1),     # 0.01~0.11
+    'max_depth': randint(3, 10),             # 3~9
+    'subsample': uniform(0.6, 0.4),          # 0.6~1.0
+    'colsample_bytree': uniform(0.6, 0.4),   # 0.6~1.0
+    'gamma': uniform(0, 0.3),                # 0~0.3
+    'reg_alpha': uniform(0, 0.5),            # L1 규제
+    'reg_lambda': uniform(1, 2),             # L2 규제
+    'min_child_weight': randint(1, 6),       # 최소 자식 가중치
+}
+
+# XGBoost 모델
+xgb = XGBClassifier(
+    random_state=42,
+    use_label_encoder=False,
+    eval_metric='logloss'
+)
+
+# RandomizedSearchCV 설정 (속도+성능 균형)
+random_search = RandomizedSearchCV(
+    estimator=xgb,
+    param_distributions=param_dist,
+    n_iter=50,          # 50번 랜덤 탐색
+    scoring='f1',
+    cv=3,               # 3-fold CV
+    n_jobs=-1,
+    verbose=2,
+    random_state=42
+)
+
+# 학습
+random_search.fit(X_train_scaled, y_train)
+
+print("=== RandomizedSearchCV Results ===")
+print("Best parameters found: ", random_search.best_params_)
+print("Best cross-validated F1 Score: ", random_search.best_score_)
+
+# 최적 모델로 테스트 데이터 예측
+best_xgb = random_search.best_estimator_
+y_pred_best = best_xgb.predict(X_test_scaled)
+
+print("=== Optimized XGBoost Test Results ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_best))
+print("Precision:", precision_score(y_test, y_pred_best))
+print("Recall:", recall_score(y_test, y_pred_best))
+print("F1 Score:", f1_score(y_test, y_pred_best))
+
+# 혼동행렬 시각화
+cm = confusion_matrix(y_test, y_pred_best)
+ConfusionMatrixDisplay(confusion_matrix=cm).plot(cmap=plt.cm.Blues)
+plt.title("Optimized XGBoost Confusion Matrix")
+plt.show()
+
+# 중요 변수 시각화
+importances = best_xgb.feature_importances_
+feat_importance = pd.Series(importances, index=features).sort_values(ascending=False)
+
+plt.figure(figsize=(10,6))
+feat_importance.plot(kind='bar')
+plt.title("Optimized XGBoost Feature Importance")
+plt.show()

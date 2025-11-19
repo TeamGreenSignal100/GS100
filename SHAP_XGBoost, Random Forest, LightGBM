@@ -1,0 +1,422 @@
+#랜덤 포레스트
+from google.colab import drive
+drive.mount('/content/drive')
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+from google.colab import drive
+
+# 파일 경로 설정 (경로는 사용자의 드라이브 환경에 맞게 수정 필요)
+file_path_2023 = "/content/drive/MyDrive/대학교/대학교 3학년/대학교 3-1 과목/캡스톤디자인EDA설계프로젝트_황철현P/캡스톤 일자별 산출 파일/2025 08 15_ api,빅카인즈,문체부 통합data/통합본/2023_통합본(문체부+빅카인즈_네이버api).csv"
+file_path_2024 = "/content/drive/MyDrive/대학교/대학교 3학년/대학교 3-1 과목/캡스톤디자인EDA설계프로젝트_황철현P/캡스톤 일자별 산출 파일/2025 08 15_ api,빅카인즈,문체부 통합data/통합본/2024_통합본(문체부+빅카인즈+네이버api).csv"
+
+# 데이터 불러오기
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 사용자 정의 결측치 처리 함수
+def handle_missing_values(df):
+    # 각 행의 결측치 개수 계산
+    nan_counts = df.isnull().sum(axis=1)
+
+    # 결측치 개수가 2개 이상인 행 삭제
+    df_cleaned = df[nan_counts <= 1]
+
+    # 나머지 결측치(1개 이하)는 0으로 채우기
+    df_filled = df_cleaned.fillna(0)
+
+    return df_filled
+
+# 2023년과 2024년 데이터에 함수 적용
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 필요한 열만 선택
+features = ['국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)', '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501', '포스팅_빈도', '긍정_키워드수', '부정_키워드수', '긍정문장비율', '중립문장비율', '부정문장비율']
+target = 'target'
+
+# 2023년 데이터(학습 데이터)
+X_train = df_2023[features]
+y_train = df_2023[target]
+
+# 2024년 데이터(테스트 데이터)
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 데이터 스케일링 (KNN을 위해 필수, Decision Tree는 선택 사항)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+df_2024.info()
+df_2023.info()
+
+from sklearn.ensemble import RandomForestClassifier
+
+# 랜덤 포레스트 모델 정의
+rf_model = RandomForestClassifier(random_state=42)
+
+# 학습
+rf_model.fit(X_train, y_train)
+
+# 예측
+y_pred_rf = rf_model.predict(X_test)
+
+# 평가 지표 계산
+print("=== 랜덤 포레스트 ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_rf))
+print("Precision:", precision_score(y_test, y_pred_rf, average='weighted'))
+print("Recall:", recall_score(y_test, y_pred_rf, average='weighted'))
+print("F1 Score:", f1_score(y_test, y_pred_rf, average='weighted'))
+
+# 혼동 행렬 시각화
+cm = confusion_matrix(y_test, y_pred_rf)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=rf_model.classes_)
+disp.plot(cmap=plt.cm.Blues)
+plt.title("랜덤 포레스트 혼동 행렬")
+plt.show()
+
+
+#--------------------------
+#LightGBM
+
+import lightgbm as lgb
+from sklearn.metrics import (
+    accuracy_score, f1_score, classification_report, confusion_matrix
+)
+# === 3. LightGBM 분류 모델 튜닝 ===
+lgb_clf = lgb.LGBMClassifier(random_state=42)
+
+param_grid_lgb = {
+    'num_leaves': [31, 50],
+    'learning_rate': [0.05, 0.1],
+    'n_estimators': [100, 200]
+}
+
+grid_lgb = GridSearchCV(
+    estimator=lgb_clf,
+    param_grid=param_grid_lgb,
+    scoring='f1',
+    cv=3,
+    n_jobs=-1,
+    verbose=1
+)
+
+# 2023년 데이터(X_2023_train, y_2023_train)로 모델 학습
+grid_lgb.fit(X_train, y_train)
+print("LightGBM 최적 하이퍼파라미터:", grid_lgb.best_params_)
+
+# === 5. 최적 모델로 예측 ===
+lgb_best_model = grid_lgb.best_estimator_
+
+# 2024년 데이터(X_2024_test)로 예측 수행
+lgb_pred_prob = lgb_best_model.predict_proba(X_test)[:, 1]
+
+# 확률 → 클래스(0 또는 1)
+lgb_pred = (lgb_pred_prob >= 0.5).astype(int)
+
+# === 6. 평가 함수 ===
+def print_classification_metrics(y_true, y_pred, model_name):
+    acc = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    print(f"\n📊 {model_name} 성능:")
+    print(f"  Accuracy: {acc:.4f}")
+    print(f"  F1 Score: {f1:.4f}")
+    print("  Classification Report:")
+    print(classification_report(y_true, y_pred))
+    print("  Confusion Matrix:")
+    print(confusion_matrix(y_true, y_pred))
+
+# 2024년 데이터(y_2024_test)와 예측값(lgb_pred) 비교
+print_classification_metrics(y_test, lgb_pred, "LightGBM")
+
+
+#-------------------
+#XGBoost
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+from google.colab import drive
+from xgboost import XGBClassifier
+from scipy.stats import uniform, randint
+
+# 파일 경로
+file_path_2023 = "/content/drive/MyDrive/대학교/대학교 3학년/대학교 3-1 과목/캡스톤디자인EDA설계프로젝트_황철현P/캡스톤 일자별 산출 파일/2025 08 15_ api,빅카인즈,문체부 통합data/통합본/2023_통합본(문체부+빅카인즈_네이버api).csv"
+file_path_2024 = "/content/drive/MyDrive/대학교/대학교 3학년/대학교 3-1 과목/캡스톤디자인EDA설계프로젝트_황철현P/캡스톤 일자별 산출 파일/2025 08 15_ api,빅카인즈,문체부 통합data/통합본/2024_통합본(문체부+빅카인즈+네이버api).csv"
+
+# 데이터 불러오기
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 결측치 처리
+def handle_missing_values(df):
+    nan_counts = df.isnull().sum(axis=1)
+    df_cleaned = df[nan_counts <= 1]
+    df_filled = df_cleaned.fillna(0)
+    return df_filled
+
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 피처/타겟 선택
+features = [
+    '국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)',
+    '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501',
+    '포스팅_빈도', '긍정_키워드수', '부정_키워드수',
+    '긍정문장비율', '중립문장비율', '부정문장비율'
+]
+target = 'target'
+
+X_train = df_2023[features]
+y_train = df_2023[target]
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 데이터 스케일링
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# RandomizedSearchCV용 하이퍼파라미터 분포 (확장)
+param_dist = {
+    'n_estimators': randint(100, 500),        # 100~500
+    'learning_rate': uniform(0.01, 0.1),     # 0.01~0.11
+    'max_depth': randint(3, 10),             # 3~9
+    'subsample': uniform(0.6, 0.4),          # 0.6~1.0
+    'colsample_bytree': uniform(0.6, 0.4),   # 0.6~1.0
+    'gamma': uniform(0, 0.3),                # 0~0.3
+    'reg_alpha': uniform(0, 0.5),            # L1 규제
+    'reg_lambda': uniform(1, 2),             # L2 규제
+    'min_child_weight': randint(1, 6),       # 최소 자식 가중치
+}
+
+# XGBoost 모델
+xgb = XGBClassifier(
+    random_state=42,
+    use_label_encoder=False,
+    eval_metric='logloss',
+    objective='binary:logistic' # Add this line to explicitly set the objective
+)
+
+# RandomizedSearchCV 설정 (속도+성능 균형)
+random_search = RandomizedSearchCV(
+    estimator=xgb,
+    param_distributions=param_dist,
+    n_iter=50,          # 50번 랜덤 탐색
+    scoring='f1',
+    cv=3,               # 3-fold CV
+    n_jobs=-1,
+    verbose=2,
+    random_state=42
+)
+
+# 학습
+random_search.fit(X_train_scaled, y_train)
+
+print("=== RandomizedSearchCV Results ===")
+print("Best parameters found: ", random_search.best_params_)
+print("Best cross-validated F1 Score: ", random_search.best_score_)
+
+# 최적 모델로 테스트 데이터 예측
+best_xgb = random_search.best_estimator_
+y_pred_best = best_xgb.predict(X_test_scaled)
+
+print("=== Optimized XGBoost Test Results ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_best))
+print("Precision:", precision_score(y_test, y_pred_best))
+print("Recall:", recall_score(y_test, y_pred_best))
+print("F1 Score:", f1_score(y_test, y_pred_best))
+
+# 혼동행렬 시각화
+cm = confusion_matrix(y_test, y_pred_best)
+ConfusionMatrixDisplay(confusion_matrix=cm).plot(cmap=plt.cm.Blues)
+plt.title("Optimized XGBoost Confusion Matrix")
+plt.show()
+
+# 중요 변수 시각화
+importances = best_xgb.feature_importances_
+feat_importance = pd.Series(importances, index=features).sort_values(ascending=False)
+
+plt.figure(figsize=(10,6))
+feat_importance.plot(kind='bar')
+plt.title("Optimized XGBoost Feature Importance")
+plt.show()
+
+# 기존에 정의된 importances 및 feat_importance를 활용
+importances = best_xgb.feature_importances_
+feat_importance = pd.Series(importances, index=features).sort_values(ascending=False)
+
+# 중요도를 백분율로 변환
+total_importance = feat_importance.sum()
+importance_percentage = (feat_importance / total_importance) * 100
+
+# 결과 출력
+print("=== Optimized XGBoost Feature Importance Percentage ===")
+print(importance_percentage.to_string())
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+# --- 1. XGBoost 내장 중요도 백분율 계산 및 영문 이름 매핑 ---
+
+# 기존에 정의된 importances 및 feat_importance를 활용
+importances = best_xgb.feature_importances_
+
+# 중요도 계산 시 features 리스트는 한글 이름을 가지고 있다고 가정합니다.
+# (이전 셀에서 XGBoost 학습 시 사용된 원본 피처 이름)
+feat_importance_kr = pd.Series(importances, index=features).sort_values(ascending=False)
+
+# 중요도를 백분율로 변환
+total_importance = feat_importance_kr.sum()
+importance_percentage_kr = (feat_importance_kr / total_importance) * 100
+
+# 피처 이름 한글 -> 영문 매핑 (이전에 정의된 feature_mapping 활용)
+feature_mapping = {
+    '국비': 'National_Fund',
+    '지방비': 'Local_Fund',
+    '기타': 'Other_Fund',
+    '합계': 'Total_Fund',
+    '내국인(명)': 'Korean_Visitors',
+    '외국인(명)': 'Foreign_Visitors',
+    '감성_점수평균': 'Sentiment_Score_Avg',
+    'G101': 'Category_G101',
+    'G201': 'Category_G201',
+    'G202': 'Category_G202',
+    'G301': 'Category_G301',
+    'G401': 'Category_G401',
+    'G501': 'Category_G501',
+    '포스팅_빈도': 'Posting_Frequency',
+    '긍정_키워드수': 'Positive_Keywords',
+    '부정_키워드수': 'Negative_Keywords',
+    '긍정문장비율': 'Positive_Sentence_Ratio',
+    '중립문장비율': 'Neutral_Sentence_Ratio',
+    '부정문장비율': 'Negative_Sentence_Ratio'
+}
+
+# 영문 이름으로 Series Index 업데이트 및 정렬
+importance_percentage_en = importance_percentage_kr.rename(index=feature_mapping).sort_values(ascending=False)
+
+print("=== Optimized XGBoost Feature Importance Percentage (영문) ===")
+print(importance_percentage_en.to_string())
+
+# --- 2. 시각화 ---
+
+plt.figure(figsize=(12, 8))
+importance_percentage_en.plot(kind='barh', color='darkorange') # barh는 수평 막대 그래프
+plt.title('Optimized XGBoost Built-in Feature Importance (Gain %)', fontsize=15)
+plt.xlabel('Importance Percentage (%) (Type: Gain)', fontsize=12)
+plt.ylabel('Features', fontsize=12)
+plt.gca().invert_yaxis() # 가장 중요한 피처가 위에 오도록 Y축 순서 반전
+plt.grid(axis='x', linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.show()
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+# --- 1. XGBoost 내장 중요도 백분율 계산 및 영문 이름 매핑 ---
+
+# 기존에 정의된 importances 및 feat_importance를 활용
+importances = best_xgb.feature_importances_
+
+# 중요도 계산 시 features 리스트는 한글 이름을 가지고 있다고 가정합니다.
+# (이전 셀에서 XGBoost 학습 시 사용된 원본 피처 이름)
+feat_importance_kr = pd.Series(importances, index=features).sort_values(ascending=False)
+
+# 중요도를 백분율로 변환
+total_importance = feat_importance_kr.sum()
+importance_percentage_kr = (feat_importance_kr / total_importance) * 100
+
+# 피처 이름 한글 -> 영문 매핑 (이전에 정의된 feature_mapping 활용)
+feature_mapping = {
+    '국비': 'National_Fund',
+    '지방비': 'Local_Fund',
+    '기타': 'Other_Fund',
+    '합계': 'Total_Fund',
+    '내국인(명)': 'Korean_Visitors',
+    '외국인(명)': 'Foreign_Visitors',
+    '감성_점수평균': 'Sentiment_Score_Avg',
+    'G101': 'Category_G101',
+    'G201': 'Category_G201',
+    'G202': 'Category_G202',
+    'G301': 'Category_G301',
+    'G401': 'Category_G401',
+    'G501': 'Category_G501',
+    '포스팅_빈도': 'Posting_Frequency',
+    '긍정_키워드수': 'Positive_Keywords',
+    '부정_키워드수': 'Negative_Keywords',
+    '긍정문장비율': 'Positive_Sentence_Ratio',
+    '중립문장비율': 'Neutral_Sentence_Ratio',
+    '부정문장비율': 'Negative_Sentence_Ratio'
+}
+
+# 영문 이름으로 Series Index 업데이트 및 정렬
+importance_percentage_en = importance_percentage_kr.rename(index=feature_mapping).sort_values(ascending=False)
+
+print("=== Optimized XGBoost Feature Importance Percentage (영문) ===")
+print(importance_percentage_en.to_string())
+
+# --- 2. 시각화 ---
+
+plt.figure(figsize=(12, 8))
+importance_percentage_en.plot(kind='barh', color='darkorange') # barh는 수평 막대 그래프
+plt.title('Optimized XGBoost Built-in Feature Importance (Gain %)', fontsize=15)
+plt.xlabel('Importance Percentage (%) (Type: Gain)', fontsize=12)
+plt.ylabel('Features', fontsize=12)
+plt.gca().invert_yaxis() # 가장 중요한 피처가 위에 오도록 Y축 순서 반전
+plt.grid(axis='x', linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.show()
+
+# 라이브러리 불러오기
+import shap
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# SHAP Explainer 생성 (이전 코드에서 이어지는 부분)
+explainer = shap.TreeExplainer(best_xgb)
+
+# SHAP 값 계산 (테스트 데이터셋 사용)
+shap_values = explainer.shap_values(X_test_scaled)
+
+# 각 특성별 SHAP 값의 절대 평균 계산
+# np.abs()를 사용하여 특성의 기여 방향(양수/음수)과 관계없이 크기만 고려합니다.
+# np.mean(axis=0)을 사용하여 각 특성별 평균을 구합니다.
+importance_values = np.mean(np.abs(shap_values), axis=0)
+
+# 특성 중요도 비율을 계산하기 위해 전체 합계를 구합니다.
+total_importance = np.sum(importance_values)
+
+# 각 특성별 중요도 비율 계산
+importance_ratios = (importance_values / total_importance) * 100
+
+# 결과를 데이터프레임으로 만들어 보기 쉽게 정렬합니다.
+feature_importance_df = pd.DataFrame({
+    'Feature': features,
+    'SHAP Importance (%)': importance_ratios
+}).sort_values(by='SHAP Importance (%)', ascending=False)
+
+# 결과 출력
+print("=== SHAP-based Feature Importance Ratios ===")
+print(feature_importance_df.to_string(index=False))
+
+# 중요도 비율을 시각화합니다.
+plt.figure(figsize=(12, 8))
+plt.barh(feature_importance_df['Feature'], feature_importance_df['SHAP Importance (%)'], color='c')
+plt.xlabel('Importance Ratio (%)')
+plt.title('SHAP-based Feature Importance Ratios for XGBoost Model')
+plt.gca().invert_yaxis()  # 가장 중요한 특성이 맨 위에 오도록 y축을 반전시킵니다.
+plt.show()
+

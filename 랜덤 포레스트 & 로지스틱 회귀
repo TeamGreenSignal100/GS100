@@ -1,0 +1,171 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+!apt-get update -qq
+!apt-get install -y fonts-nanum*
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+from google.colab import drive
+
+# 파일 경로 설정 (경로는 사용자의 드라이브 환경에 맞게 수정 필요)
+file_path_2023 = "/content/drive/MyDrive/캡스톤/2023_통합본(문체부+빅카인즈_네이버api).csv"
+file_path_2024 = "/content/drive/MyDrive/캡스톤/2024_통합본(문체부+빅카인즈+네이버api).csv"
+
+# 데이터 불러오기
+df_2023 = pd.read_csv(file_path_2023)
+df_2024 = pd.read_csv(file_path_2024)
+
+# 사용자 정의 결측치 처리 함수
+def handle_missing_values(df):
+    # 각 행의 결측치 개수 계산
+    nan_counts = df.isnull().sum(axis=1)
+
+    # 결측치 개수가 2개 이상인 행 삭제
+    df_cleaned = df[nan_counts <= 1]
+
+    # 나머지 결측치(1개 이하)는 0으로 채우기
+    df_filled = df_cleaned.fillna(0)
+
+    return df_filled
+
+# 2023년과 2024년 데이터에 함수 적용
+df_2023 = handle_missing_values(df_2023)
+df_2024 = handle_missing_values(df_2024)
+
+# 필요한 열만 선택
+features = ['국비', '지방비', '기타', '합계', '내국인(명)', '외국인(명)', '감성_점수평균', 'G101', 'G201', 'G202', 'G301', 'G401', 'G501', '포스팅_빈도', '긍정_키워드수', '부정_키워드수', '긍정문장비율', '중립문장비율', '부정문장비율']
+target = 'target'
+
+# 2023년 데이터(학습 데이터)
+X_train = df_2023[features]
+y_train = df_2023[target]
+
+# 2024년 데이터(테스트 데이터)
+X_test = df_2024[features]
+y_test = df_2024[target]
+
+# 데이터 스케일링 (KNN을 위해 필수, Decision Tree는 선택 사항)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+df_2024.info()
+df_2023.info()
+import pandas as pd
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score, classification_report, confusion_matrix,
+    precision_score, recall_score, f1_score, ConfusionMatrixDisplay
+)
+import matplotlib.pyplot as plt
+
+plt.rcParams['font.family'] = 'NanumGothic'
+plt.rcParams['axes.unicode_minus'] = False
+
+
+rf_model = RandomForestClassifier(random_state=42, n_jobs=-1)
+rf_model.fit(X_train, y_train)
+y_pred = rf_model.predict(X_test)
+
+print("=== 기본 랜덤 포레스트 성능 ===")
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("Precision:", precision_score(y_test, y_pred, average='weighted'))
+print("Recall:", recall_score(y_test, y_pred, average='weighted'))
+print("F1 Score:", f1_score(y_test, y_pred, average='weighted'))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+cm = confusion_matrix(y_test, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=rf_model.classes_)
+disp.plot(cmap=plt.cm.Blues)
+plt.title("기본 랜덤 포레스트 혼동 행렬")
+plt.show()
+
+param_grid = {
+    'n_estimators': [100, 300, 500],
+    'max_depth': [None, 10, 20],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4],
+    'max_features': ['sqrt', 'log2'],
+    'class_weight': [None, 'balanced']
+}
+
+grid_rf = GridSearchCV(
+    RandomForestClassifier(random_state=42, n_jobs=-1),
+    param_grid,
+    cv=5,
+    scoring='f1_weighted',   # 불균형 데이터 대비
+    n_jobs=-1
+)
+
+grid_rf.fit(X_train, y_train)
+
+print("\n=== 최적 파라미터 ===")
+print(grid_rf.best_params_)
+print("최고 교차검증 성능:", grid_rf.best_score_)
+
+best_rf_model = grid_rf.best_estimator_
+y_pred_best = best_rf_model.predict(X_test)
+
+print("\n=== 최적 랜덤 포레스트 성능 (테스트셋) ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_best))
+print("Precision:", precision_score(y_test, y_pred_best, average='weighted'))
+print("Recall:", recall_score(y_test, y_pred_best, average='weighted'))
+print("F1 Score:", f1_score(y_test, y_pred_best, average='weighted'))
+print("\nClassification Report:\n", classification_report(y_test, y_pred_best))
+
+cm_best = confusion_matrix(y_test, y_pred_best)
+disp_best = ConfusionMatrixDisplay(confusion_matrix=cm_best, display_labels=best_rf_model.classes_)
+disp_best.plot(cmap=plt.cm.Blues)
+plt.title("최적 랜덤 포레스트 혼동 행렬")
+plt.show()
+
+#--------------------------
+
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+param_grid_log = {
+    'C': [0.01, 0.1, 1, 10, 100],           # 규제 강도
+    'penalty': ['l1', 'l2'],                # 규제 방식
+    'solver': ['liblinear', 'saga'],        # 최적화 알고리즘
+    'class_weight': [None, 'balanced']      # 클래스 불균형 처리
+}
+
+grid_log = GridSearchCV(
+    LogisticRegression(max_iter=2000, random_state=42),
+    param_grid_log,
+    cv=5,                        # 5-fold 교차검증
+    scoring='f1_weighted',       # f1_weighted 기준
+    n_jobs=-1                    # 병렬 처리
+)
+
+grid_log.fit(X_train_scaled, y_train)
+
+print("=== 로지스틱회귀 최적 파라미터 ===")
+print(grid_log.best_params_)
+print("최고 F1 (교차검증):", grid_log.best_score_)
+
+best_log_model = grid_log.best_estimator_
+y_pred_log = best_log_model.predict(X_test_scaled)
+
+print("\n=== 테스트셋 성능 ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_log))
+print("Precision:", precision_score(y_test, y_pred_log, average='weighted'))
+print("Recall:", recall_score(y_test, y_pred_log, average='weighted'))
+print("F1 Score:", f1_score(y_test, y_pred_log, average='weighted'))
+
+cm = confusion_matrix(y_test, y_pred_log)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=best_log_model.classes_)
+disp.plot(cmap=plt.cm.Oranges)
+plt.title("최적 로지스틱회귀 혼동 행렬")
+plt.show()
